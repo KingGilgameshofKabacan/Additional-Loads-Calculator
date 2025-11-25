@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Construction Firm Load Analyzer</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Remove spinner from number inputs */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+        
+        .card { @apply bg-gray-800 rounded-lg p-6 shadow-lg border border-gray-700; }
+        .input-label { @apply block text-xs text-gray-400 mb-1 font-bold uppercase tracking-wider; }
+        .input-field { @apply w-full bg-gray-700 border border-gray-600 rounded px-3 py-3 text-white text-lg focus:outline-none focus:border-blue-500 transition-colors; }
+        .select-field { @apply w-full bg-gray-700 border border-gray-600 rounded px-3 py-3 text-white text-lg focus:outline-none focus:border-blue-500 transition-colors; }
+        
+        .item-btn { @apply flex justify-between items-center p-2 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 cursor-pointer transition-all; }
+        .item-name { @apply text-sm text-gray-200 font-medium; }
+        .item-weight { @apply text-xs text-gray-400; }
+
+        .result-box { @apply bg-gray-900 rounded p-4 border border-gray-700 text-center; }
+        .result-label { @apply text-xs text-gray-500 uppercase mb-1; }
+        .result-val { @apply text-2xl font-bold text-white; }
+        .result-unit { @apply text-sm font-normal text-gray-500; }
+    </style>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-900 text-gray-100 p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-6">
+
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-blue-400">Construction Firm Load Analyzer</h1>
+            <p class="text-gray-400">Itemized Load Calculator (Items linked to Room Function)</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- LEFT: Inputs & Inventory -->
+            <div class="lg:col-span-7 space-y-6">
+                
+                <!-- 1. Room Definition -->
+                <div class="card">
+                    <h2 class="text-xl font-bold text-green-400 mb-4 border-b border-gray-700 pb-2">1. Room Dimensions & Type</h2>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="input-label">Length (m)</label>
+                            <input type="number" id="room-length" value="6.0" class="input-field" step="any" min="0.1" onclick="this.select()">
+                        </div>
+                        <div>
+                            <label class="input-label">Width (m)</label>
+                            <input type="number" id="room-width" value="5.0" class="input-field" step="any" min="0.1" onclick="this.select()">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="input-label">Room Function</label>
+                        <select id="room-type" class="select-field">
+                            <!-- Values are NSCP Minimums, data-category links to item list -->
+                            <option value="2.4" data-range="2.5 - 4.0" data-category="office">Office (General)</option>
+                            <option value="4.8" data-range="5.0 - 5.6" data-category="meeting">Conference / Meeting Room</option>
+                            <option value="2.4" data-range="2.5 - 3.5" data-category="canteen">Canteen / Pantry</option>
+                            <option value="6.0" data-range="4.0 - 10.0" data-category="lab">Testing Lab (Standard)</option>
+                            <option value="12.0" data-range="10.0 - 15.0" data-category="lab">Testing Lab (Heavy/Industrial)</option>
+                            <option value="2.4" data-range="2.4 - 4.8" data-category="misc">Storage (Light)</option>
+                            <option value="7.2" data-range="7.2 - 12.0" data-category="misc">Storage (Heavy)</option>
+                        </select>
+                        <div class="mt-2 flex justify-between text-xs">
+                            <span class="text-gray-500">NSCP Min: <strong id="lbl-nscp" class="text-blue-400">2.4 kPa</strong></span>
+                            <span class="text-gray-500">Doc Expected: <strong id="lbl-expected" class="text-green-400">2.5 - 4.0 kPa</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. Item Catalog -->
+                <div class="card">
+                    <h2 class="text-xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2 flex justify-between items-center">
+                        <span>2. Add Items</span>
+                        <span class="text-xs font-normal text-gray-400 bg-gray-900 px-2 py-1 rounded border border-gray-600" id="current-cat-label">Showing: Office Items</span>
+                    </h2>
+                    
+                    <!-- Item Grid -->
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto mb-4 pr-1" id="item-grid">
+                        <!-- Items injected by JS -->
+                    </div>
+
+                    <!-- Selection & Add Area -->
+                    <div class="bg-gray-900 p-4 rounded border border-gray-600 flex flex-col md:flex-row gap-3 items-end">
+                        <div class="flex-grow w-full">
+                            <label class="input-label text-blue-300">Selected Item</label>
+                            <input type="text" id="sel-name" placeholder="Select an item above..." class="w-full bg-gray-800 border border-gray-500 rounded px-3 py-2 text-white" readonly>
+                        </div>
+                        <div class="w-full md:w-24">
+                            <label class="input-label text-blue-300">Unit Wt (kg)</label>
+                            <input type="number" id="sel-weight" class="w-full bg-gray-800 border border-gray-500 rounded px-3 py-2 text-gray-400" readonly>
+                        </div>
+                        <div class="w-full md:w-24">
+                            <label class="input-label text-green-400">Quantity</label>
+                            <input type="number" id="sel-qty" value="1" class="w-full bg-gray-700 border border-green-500 rounded px-3 py-2 text-white font-bold focus:ring-1 focus:ring-green-500 focus:outline-none">
+                        </div>
+                        <button onclick="addItem()" class="w-full md:w-auto bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded h-[42px]">ADD</button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- RIGHT: Inventory List & Results -->
+            <div class="lg:col-span-5 space-y-6">
+                
+                <!-- Inventory Table -->
+                <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 overflow-hidden flex flex-col h-[400px]">
+                    <div class="p-4 border-b border-gray-700 bg-gray-800">
+                        <h3 class="font-bold text-gray-300">Current Room Inventory</h3>
+                    </div>
+                    <div class="overflow-y-auto flex-grow p-0">
+                        <table class="w-full text-left text-sm text-gray-300">
+                            <thead class="bg-gray-700 text-gray-100 text-xs uppercase sticky top-0">
+                                <tr>
+                                    <th class="p-3">Item</th>
+                                    <th class="p-3 text-right">Qty</th>
+                                    <th class="p-3 text-right">Total (kg)</th>
+                                    <th class="p-3 w-8"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-list" class="divide-y divide-gray-700">
+                                <!-- List Items -->
+                                <tr class="text-center text-gray-500 italic py-4"><td colspan="4" class="p-4">No items added yet.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-gray-900 border-t border-gray-700 text-right">
+                        <span class="text-xs text-gray-500 uppercase mr-2">Total Weight:</span>
+                        <span id="total-kg" class="text-xl font-bold text-white">0</span> <span class="text-sm text-gray-400">kg</span>
+                    </div>
+                </div>
+
+                <!-- Final Results -->
+                <div class="card bg-gray-800 border-t-4 border-t-blue-500">
+                    <h3 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Load Calculation</h3>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="bg-gray-900 rounded p-3 text-center">
+                            <div class="text-[10px] text-gray-500 uppercase">NSCP Minimum</div>
+                            <div class="text-xl font-bold text-blue-400" id="res-min">2.40</div>
+                            <div class="text-xs text-gray-600">kPa</div>
+                        </div>
+                        <div class="bg-gray-900 rounded p-3 text-center border border-yellow-900/50">
+                            <div class="text-[10px] text-gray-500 uppercase">Itemized Load</div>
+                            <div class="text-xl font-bold text-yellow-400" id="res-actual">0.00</div>
+                            <div class="text-xs text-gray-600">kPa</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900 p-3 rounded text-center mb-2">
+                        <div class="text-xs text-gray-500 uppercase mb-1">Final Design Load (Max)</div>
+                        <div class="text-4xl font-bold text-white" id="res-final">2.40</div>
+                        <div class="text-sm text-gray-400">kPa</div>
+                    </div>
+
+                    <div id="verdict-box" class="text-center text-xs p-2 rounded bg-gray-700 text-gray-300">
+                        Add items to compare against code...
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Data from Loadings.docx (Estimated Weights in kg) ---
+        // Added "Person" to all specific categories for convenience
+        const catalog = {
+            office: [
+                { name: "Person (Avg)", weight: 75 },
+                { name: "Desk (Individual)", weight: 40 },
+                { name: "Rolling Chair", weight: 12 },
+                { name: "Laptop/PC Set", weight: 10 },
+                { name: "Filing Drawer (Small)", weight: 25 },
+                { name: "Workstation Partition", weight: 20 },
+                { name: "Filing Cabinet (Full)", weight: 200 },
+                { name: "Copier (Heavy)", weight: 150 },
+                { name: "Compact Shelving (per m)", weight: 300 }
+            ],
+            meeting: [
+                { name: "Person (Avg)", weight: 75 },
+                { name: "Small Table", weight: 25 },
+                { name: "Light Chair", weight: 5 },
+                { name: "Conf. Table (Large)", weight: 100 },
+                { name: "Projector/AV Equip", weight: 15 },
+                { name: "Podium", weight: 35 },
+                { name: "Dense Seating (per row)", weight: 80 }
+            ],
+            canteen: [
+                { name: "Person (Avg)", weight: 75 },
+                { name: "Dining Table (4-pax)", weight: 45 },
+                { name: "Plastic Chair", weight: 3 },
+                { name: "Refrigerator", weight: 80 },
+                { name: "Microwave/Dispenser", weight: 20 },
+                { name: "Fixed Bench", weight: 60 },
+                { name: "Commercial Oven", weight: 180 },
+                { name: "Food Prep Counter", weight: 120 }
+            ],
+            lab: [
+                { name: "Person (Avg)", weight: 75 },
+                { name: "Lab Table", weight: 60 },
+                { name: "Sample Cabinet", weight: 80 },
+                { name: "Compression Tester", weight: 500 },
+                { name: "Sieve Shaker", weight: 40 },
+                { name: "Mixer", weight: 100 },
+                { name: "Curing Tank (Water)", weight: 1200 },
+                { name: "UTM (Universal Machine)", weight: 2500 },
+                { name: "Concrete Press", weight: 1500 },
+                { name: "Concrete Sample (Cyl)", weight: 13 }
+            ],
+            misc: [
+                { name: "Person (Avg)", weight: 75 },
+                { name: "Box of Files", weight: 15 },
+                { name: "Light Shelf", weight: 40 },
+                { name: "Heavy Shelf", weight: 150 },
+                { name: "Archive Box", weight: 12 }
+            ]
+        };
+
+        // --- State ---
+        let items = [];
+        const GRAVITY = 9.81;
+
+        // --- Elements ---
+        const els = {
+            len: document.getElementById('room-length'),
+            wid: document.getElementById('room-width'),
+            type: document.getElementById('room-type'),
+            
+            lblNscp: document.getElementById('lbl-nscp'),
+            lblExp: document.getElementById('lbl-expected'),
+            catLabel: document.getElementById('current-cat-label'),
+            
+            itemGrid: document.getElementById('item-grid'),
+            
+            selName: document.getElementById('sel-name'),
+            selWt: document.getElementById('sel-weight'),
+            selQty: document.getElementById('sel-qty'),
+            
+            invList: document.getElementById('inventory-list'),
+            totalKg: document.getElementById('total-kg'),
+            
+            resMin: document.getElementById('res-min'),
+            resAct: document.getElementById('res-actual'),
+            resFin: document.getElementById('res-final'),
+            verdict: document.getElementById('verdict-box')
+        };
+
+        // --- Listeners ---
+        [els.len, els.wid, els.type].forEach(el => el.addEventListener('input', calculate));
+        
+        // --- Init ---
+        // Initial setup based on default selection
+        updateRoomContext();
+        calculate();
+
+        // --- Functions ---
+
+        // 1. Update Labels & Items based on Room Type
+        els.type.addEventListener('change', updateRoomContext);
+
+        function updateRoomContext() {
+            const opt = els.type.options[els.type.selectedIndex];
+            const category = opt.getAttribute('data-category');
+            
+            // Update Text Info
+            els.lblNscp.textContent = opt.value + " kPa";
+            els.lblExp.textContent = opt.getAttribute('data-range') + " kPa";
+            
+            // Update Item Grid
+            filterItems(category);
+            
+            // Recalculate (in case room min load changed)
+            calculate();
+        }
+
+        // 2. Filter Item Grid
+        function filterItems(category) {
+            // Update Label
+            const displayNames = {
+                'office': 'Office Items',
+                'meeting': 'Meeting/Conference Items',
+                'canteen': 'Canteen/Pantry Items',
+                'lab': 'Lab Equipment',
+                'misc': 'Storage/Misc Items'
+            };
+            els.catLabel.textContent = "Showing: " + (displayNames[category] || 'Items');
+
+            // Render Grid
+            const list = catalog[category];
+            els.itemGrid.innerHTML = list.map(item => `
+                <div onclick="selectItem('${item.name}', ${item.weight})" class="item-btn group">
+                    <div>
+                        <div class="item-name group-hover:text-white">${item.name}</div>
+                        <div class="item-weight">${item.weight} kg</div>
+                    </div>
+                    <div class="text-blue-500 group-hover:text-blue-300 font-bold text-xl">+</div>
+                </div>
+            `).join('');
+        }
+
+        // 3. Select Item
+        window.selectItem = function(name, weight) {
+            els.selName.value = name;
+            els.selWt.value = weight;
+            els.selQty.value = 1;
+            els.selQty.focus();
+            els.selQty.select();
+        };
+
+        // 4. Add to Inventory
+        window.addItem = function() {
+            const name = els.selName.value;
+            const wt = parseFloat(els.selWt.value);
+            const qty = parseFloat(els.selQty.value);
+
+            if (name && wt > 0 && qty > 0) {
+                items.push({ name, weight: wt, qty });
+                renderInventory();
+                calculate();
+                
+                // Reset select inputs (optional, or keep for rapid entry)
+                els.selQty.value = 1;
+            }
+        };
+
+        // 5. Render Inventory
+        window.removeItem = function(index) {
+            items.splice(index, 1);
+            renderInventory();
+            calculate();
+        };
+
+        function renderInventory() {
+            if (items.length === 0) {
+                els.invList.innerHTML = '<tr class="text-center text-gray-500 italic py-4"><td colspan="4" class="p-4">No items added yet.</td></tr>';
+                els.totalKg.textContent = '0';
+                return;
+            }
+
+            let total = 0;
+            els.invList.innerHTML = items.map((item, i) => {
+                const sub = item.weight * item.qty;
+                total += sub;
+                return `
+                <tr class="border-b border-gray-700 last:border-0 hover:bg-gray-700/50">
+                    <td class="p-3 text-white">${item.name}</td>
+                    <td class="p-3 text-right text-gray-400">${item.qty}</td>
+                    <td class="p-3 text-right font-bold text-gray-200">${sub}</td>
+                    <td class="p-3 text-center"><button onclick="removeItem(${i})" class="text-red-400 hover:text-red-300 font-bold">×</button></td>
+                </tr>`;
+            }).join('');
+            els.totalKg.textContent = total.toLocaleString();
+        }
+
+        // 6. Calculate Results
+        function calculate() {
+            const L = parseFloat(els.len.value);
+            const W = parseFloat(els.wid.value);
+            
+            // Check valid dimensions
+            if (isNaN(L) || isNaN(W) || L <= 0 || W <= 0) {
+                els.resAct.textContent = "---";
+                els.resFin.textContent = "---";
+                return;
+            }
+
+            const Area = L * W;
+            const minLoad = parseFloat(els.type.value);
+            
+            // Calc Item Load
+            const totalKg = items.reduce((s, i) => s + (i.weight * i.qty), 0);
+            const itemLoadKpa = ((totalKg * GRAVITY) / 1000) / Area;
+
+            // Logic: Max of (Min, Itemized)
+            const designLoad = Math.max(minLoad, itemLoadKpa);
+
+            // Display
+            els.resMin.textContent = minLoad.toFixed(2);
+            els.resAct.textContent = itemLoadKpa.toFixed(2);
+            els.resFin.textContent = designLoad.toFixed(2);
+
+            // Verdict
+            if (itemLoadKpa > minLoad) {
+                els.verdict.innerHTML = `<span class="text-yellow-400 font-bold">⚠️ ACTUAL EXCEEDS MINIMUM</span><br>Use ${itemLoadKpa.toFixed(2)} kPa`;
+                els.verdict.className = "text-center text-xs p-2 rounded bg-yellow-900/30 border border-yellow-700 text-yellow-200";
+            } else {
+                els.verdict.innerHTML = `<span class="text-blue-400 font-bold">✅ WITHIN CODE LIMITS</span><br>Use ${minLoad.toFixed(2)} kPa`;
+                els.verdict.className = "text-center text-xs p-2 rounded bg-gray-700 text-gray-300";
+            }
+        }
+
+    </script>
+</body>
+</html>
